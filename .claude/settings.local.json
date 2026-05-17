@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(jq -r '.cells[] | select\\(.cell_type==\"\"code\"\"\\) | \"\"CODE CELL:\\\\n\"\" + \\(.source | join\\(\"\"\"\"\\)\\)')",
+      "Bash(pip show numpy)",
+      "Bash(pip install numpy matplotlib networkx)",
+      "Bash(grep -E '^   \"\"cell_type\"\"|^    \"\"id\"\"|^---CELL_END')",
+      "Bash(python -c \":*)"
+    ]
+  }
+}
