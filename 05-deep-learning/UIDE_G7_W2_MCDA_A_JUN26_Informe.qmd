@@ -1,0 +1,311 @@
+---
+format:
+  pdf:
+    documentclass: article
+    classoption: twocolumn
+    geometry:
+      - top=2.2cm
+      - bottom=2.2cm
+      - left=1.5cm
+      - right=1.5cm
+      - headheight=14pt
+    fontsize: 9pt
+    linestretch: 1.15
+    number-sections: true
+    keep-tex: false
+    latex-auto-install: false
+    include-in-header: header.tex
+
+execute:
+  enabled: false
+---
+
+\maketitle
+
+# Resumen del Problema
+
+El presente proyecto implementa una \textbf{Red Neuronal Recurrente (RNN)} con
+arquitectura GRU de dos capas para predecir el rendimiento académico de
+estudiantes, usando el \textit{Student Performance Dataset} de Kaggle
+(10.000 registros). La variable objetivo \texttt{Performance Index} es
+numérica continua (10--100), por lo que el problema se aborda como
+\textbf{regresión supervisada}. Se elige una arquitectura recurrente
+porque permite representar las 5 variables como una micro-secuencia,
+aprovechando el estado oculto de la GRU para capturar interacciones
+no lineales entre ellas.
+
+\begingroup\small
+\textbf{Pregunta principal:} ¿Qué factores académicos y hábitos de
+estudio permiten predecir el rendimiento académico?
+
+\textbf{Preguntas secundarias:} ¿Son las calificaciones previas el
+predictor dominante? ¿Influyen las horas de estudio, sueño y
+actividades extracurriculares?
+
+\textbf{Notebook:} \href{https://colab.research.google.com/drive/1xJLuqcJCoKBa3cmkU9b0PAkMrh2bbhp2?usp=sharing}{Abrir en Google Colab}
+\endgroup
+
+# Preparación del Dataset
+
+## Descripción del Dataset
+
+El \textit{Student Performance Dataset} contiene 10.000 registros de
+estudiantes sin valores faltantes. La distribución del
+\texttt{Performance Index} es aproximadamente uniforme (Figura~1).
+La matriz de correlación confirma que \texttt{Previous Scores}
+es la variable más asociada al rendimiento (r~=~0.915), seguida
+de \texttt{Hours Studied} (r~=~0.374).
+
+\begin{table}[H]
+\caption{Variables del modelo}
+\centering\small
+\begin{tabular}{@{}p{2.4cm}p{1.8cm}p{1.4cm}@{}}
+\toprule
+\textbf{Variable} & \textbf{Tipo} & \textbf{Rol} \\
+\midrule
+Previous Scores      & Numérica         & Predictora \\
+Hours Studied        & Numérica         & Predictora \\
+Sample Q. Papers     & Numérica         & Predictora \\
+Sleep Hours          & Numérica         & Predictora \\
+Extracurricular Act. & Categ. (binaria) & Predictora \\
+Performance Index    & Numérica         & Objetivo   \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/fig_01_dist_target.png}
+\caption{Distribución del Performance Index}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/fig_09_correlacion.png}
+\caption{Matriz de correlación entre variables numéricas}
+\end{figure}
+
+## Preprocesamiento y División
+
+El flujo siguió seis pasos para evitar \textit{data leakage}:
+
+\begin{enumerate}
+\item \textbf{Eliminación de duplicados.}
+\item \textbf{Codificación binaria:} \texttt{Extracurricular Activities}
+      Yes~=~1, No~=~0.
+\item \textbf{División 80/20} \textit{antes} del escalado.
+\item \textbf{StandardScaler} ajustado solo con datos de entrenamiento.
+\item \textbf{Partición interna 80/20} para obtener train (64\%) y
+      validación (16\%).
+\item \textbf{Reformateo a pseudo-secuencia} \texttt{(N,~5,~1)}
+      con orden conceptual: calificaciones previas $\to$ horas de
+      estudio $\to$ exámenes de práctica $\to$ horas de sueño
+      $\to$ actividades extracurriculares.
+\end{enumerate}
+
+# Implementación y Entrenamiento
+
+## Selección de Arquitectura
+
+Se compararon SimpleRNN, LSTM y GRU (1~capa, 32~unidades,
+mismos hiperparámetros). La \textbf{GRU} fue seleccionada
+por igualar o superar a LSTM con menos parámetros (2~compuertas
+vs.~3), adecuado para secuencias cortas de 5~pasos.
+
+\begin{table}[H]
+\caption{Comparativo de celdas recurrentes}
+\centering\small
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Celda} & \textbf{val\_loss} & \textbf{Params} & \textbf{Selec.} \\
+\midrule
+SimpleRNN & mayor  & menor & ---          \\
+LSTM      & similar& mayor & ---          \\
+GRU       & menor  & medio & \checkmark   \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+## Arquitectura GRU Final
+
+\begin{table}[H]
+\caption{Arquitectura del modelo GRU}
+\centering\small
+\begin{tabular}{@{}p{2.2cm}p{1.6cm}p{1.8cm}@{}}
+\toprule
+\textbf{Capa} & \textbf{Unidades} & \textbf{Config.} \\
+\midrule
+Entrada       & (5, 1)  & ---               \\
+GRU 1         & 64      & return\_seq=True  \\
+Dropout 1     & 20\%    & ---               \\
+GRU 2         & 32      & return\_seq=False \\
+Dropout 2     & 20\%    & ---               \\
+Dense oculta  & 16      & ReLU              \\
+Salida        & 1       & Lineal            \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La arquitectura decreciente (64~$\to$~32~$\to$~16) extrae
+representaciones progresivamente más abstractas. El
+\textbf{Dropout~(20\%)} previene el sobreajuste. La salida
+lineal permite predecir cualquier valor continuo.
+
+## Configuración del Entrenamiento
+
+\begin{itemize}
+\item \textbf{Loss:} MSE $|$ \textbf{Optimizador:} Adam,
+      \textit{lr}~=~0.001 $|$ \textbf{Batch:}~64.
+\item \textbf{EarlyStopping:} \texttt{patience=20},
+      \texttt{restore\_best\_weights=True}.
+\item \textbf{ReduceLROnPlateau:} \texttt{factor=0.5},
+      \texttt{patience=8}, \texttt{min\_lr=1e-6}.
+\item \textbf{ModelCheckpoint:} guarda únicamente los mejores pesos.
+\end{itemize}
+
+Las curvas de entrenamiento (Figura~2) muestran convergencia
+estable sin sobreajuste.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/fig_11_curvas_entrenamiento.png}
+\caption{Curvas de pérdida (MSE) y accuracy adaptada por época}
+\end{figure}
+
+# Evaluación del Modelo
+
+## Métricas en el Conjunto de Prueba
+
+\begin{table}[H]
+\caption{Métricas de regresión --- Conjunto de prueba}
+\centering\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+\textbf{Modelo} & \textbf{RMSE} & \textbf{MAE} & \textbf{R\textsuperscript{2}} & \textbf{MAPE} \\
+\midrule
+GRU (2 capas) & $\approx$1.6 & $\approx$1.3 & $\approx$0.99 & $<$3\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+El modelo GRU alcanzó \textbf{R\textsuperscript{2}~$\approx$~0.99},
+explicando el 99\% de la variabilidad del \texttt{Performance Index},
+con un MAE inferior a 1.5 puntos sobre una escala de 10--100.
+
+## Análisis de Overfitting
+
+Las curvas de entrenamiento y validación convergen sin divergencia.
+\texttt{EarlyStopping} interrumpió el proceso en el punto óptimo y
+restauró los mejores pesos. El Dropout controló efectivamente el
+sobreajuste.
+
+## Predicción vs.\ Realidad y Residuos
+
+Los gráficos de diagnóstico (Figuras~3 y~4) muestran alineación
+muy cercana a la diagonal de predicción perfecta. Los residuos
+están centrados en cero y son independientes (Ljung-Box
+p~$>$~0.05).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/fig_13_prediccion_vs_realidad.png}
+\caption{Predicción vs.\ Realidad (conjunto de prueba)}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/fig_14_residuos_vs_ajustados.png}
+\caption{Residuos vs.\ Valores Ajustados}
+\end{figure}
+
+## Matriz de Confusión Adaptada
+
+La variable continua se discretizó en tres categorías
+(Bajo~$\leq$~40, Medio~40--70, Alto~$>$~70) para visualizar
+los errores de clasificación (Figura~5). Las confusiones
+ocurren únicamente entre categorías adyacentes; no se observan
+errores entre los extremos.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.82\columnwidth]{quarto_assets/figures/fig_12_matriz_confusion.png}
+\caption{Matriz de confusión adaptada (Bajo / Medio / Alto)}
+\end{figure}
+
+## Ejemplos de Predicciones Correctas e Incorrectas
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/fig_17_ejemplos_predicciones.png}
+\caption{Predicciones correctas (verde) e incorrectas (rojo)}
+\end{figure}
+
+## Importancia de Variables
+
+La importancia por permutación (caída de R\textsuperscript{2}
+al barajar cada variable 10~veces) confirma que
+\texttt{Previous Scores} es el predictor dominante, seguido
+de \texttt{Hours Studied}. Las variables de hábitos
+(\texttt{Sleep Hours}, \texttt{Extracurricular Activities})
+tienen impacto marginal dentro del modelo conjunto.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/fig_17_importancia_permutacion.png}
+\caption{Importancia de variables por permutación (caída de R\textsuperscript{2})}
+\end{figure}
+
+# Respuesta a las Preguntas de Investigación
+
+Usando el modelo GRU e importancia por permutación:
+
+\begin{itemize}
+\item \textbf{¿Calificaciones previas como predictor dominante?}
+      Sí. Mayor caída de R\textsuperscript{2} al permutarse;
+      r~=~0.915 en el EDA.
+\item \textbf{¿Estudiar más horas mejora el desempeño?}
+      Sí, con efecto positivo moderado (r~=~0.374).
+\item \textbf{¿Influyen las horas de sueño?}
+      Marginalmente; caída pequeña de R\textsuperscript{2}
+      al permutarlas.
+\item \textbf{¿Actividades extracurriculares tienen impacto?}
+      Mínimo; variable con menor importancia por permutación.
+\end{itemize}
+
+# Conclusiones
+
+\textbf{Sobre los hallazgos del modelo:}
+
+\begin{itemize}
+\item \textbf{R\textsuperscript{2}~$\approx$~0.99:} alta capacidad
+      predictiva incluso sobre datos tabulares reformateados como
+      pseudo-secuencias.
+\item \textbf{Calificaciones previas como predictor dominante:}
+      mayor caída de R\textsuperscript{2} por permutación y
+      r~=~0.915 en correlación.
+\item \textbf{Sin sobreajuste:} curvas de entrenamiento y validación
+      convergen; callbacks efectivos.
+\item \textbf{GRU superior a LSTM en este contexto:} igual precisión
+      con menos parámetros, adecuado para secuencias de 5~pasos.
+\item \textbf{Residuos independientes:} Ljung-Box p~$>$~0.05.
+\end{itemize}
+
+\textbf{Sobre el proceso de modelado:}
+
+\begin{itemize}
+\item \textbf{Preprocesamiento crítico:} dividir antes de escalar
+      fue determinante para métricas confiables.
+\item \textbf{El factor decisivo fue la calidad de las variables,}
+      no la naturaleza recurrente: \texttt{Previous Scores}
+      explica la mayor parte del R\textsuperscript{2}.
+\item \textbf{Callbacks estratégicos:} EarlyStopping +
+      ReduceLROnPlateau redujeron el entrenamiento sin sacrificar
+      precisión.
+\end{itemize}
+
+\textbf{Proyección Semana 3:} Se explorará \textbf{TabTransformer}
+(Google, 2021) como modelo preentrenado para datos tabulares, y
+opcionalmente \textbf{DistilBERT} si el problema se reformula en
+texto natural. La hipótesis es que el Transfer Learning mejorará
+la \textbf{eficiencia}: alcanzar resultados equivalentes con menos
+datos etiquetados.

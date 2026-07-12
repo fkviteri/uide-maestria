@@ -1,0 +1,372 @@
+---
+format:
+  pdf:
+    documentclass: article
+    classoption: twocolumn
+    geometry:
+      - top=2.2cm
+      - bottom=2.2cm
+      - left=1.5cm
+      - right=1.5cm
+      - headheight=14pt
+    fontsize: 9pt
+    linestretch: 1.15
+    number-sections: true
+    keep-tex: false
+    latex-auto-install: false
+    include-in-header: header.tex
+
+execute:
+  enabled: false
+---
+
+\maketitle
+
+# Resumen del Problema
+
+El presente proyecto implementa una arquitectura pre-entrenada
+(\textbf{BERT-Tiny}, 4.39M parámetros) con \textbf{Transfer
+Learning} y \textbf{Fine-Tuning} para predecir el rendimiento
+académico de estudiantes a partir de variables relacionadas con
+hábitos de estudio, antecedentes académicos y actividades
+complementarias. La variable objetivo \texttt{Performance Index}
+es numérica continua (10--100), por lo que el problema se aborda
+como \textbf{regresión supervisada}. Se complementa con
+\textbf{TabPFN} como referencia fundacional, y se incorporan
+\textbf{LIME} y \textbf{SHAP} para validar las decisiones del
+modelo. Este informe cierra el ciclo de tres semanas respondiendo
+las preguntas de investigación del proyecto con evidencia acumulada
+de MLP, GRU y BERT-Tiny.
+
+\begingroup\small
+\textbf{Pregunta principal:} ¿Qué factores académicos y hábitos
+de estudio permiten explicar o predecir el rendimiento académico
+de un estudiante?
+
+\textbf{Preguntas secundarias:} (1)~¿Las calificaciones previas
+son el principal predictor? (2)~¿Estudiar más horas se asocia con
+mejor desempeño? (3)~¿Las horas de sueño influyen en el
+rendimiento? (4)~¿Las actividades extracurriculares tienen impacto?
+(5)~¿La práctica de exámenes contribuye a mejorar los resultados?
+\endgroup
+
+# Selección y Justificación del Modelo
+
+## Comparativa de Arquitecturas
+
+Se evaluaron cuatro arquitecturas candidatas antes de seleccionar
+la estrategia final (Tabla~1).
+
+\begin{table}[H]
+\caption{Arquitecturas pre-entrenadas evaluadas}
+\centering\small
+\begin{tabular}{@{}p{1.5cm}p{3.0cm}p{1.6cm}@{}}
+\toprule
+\textbf{Modelo} & \textbf{Enfoque} & \textbf{Selec.} \\
+\midrule
+TabNet         & Atención dispersa secuencial       & No \\
+TabPFN         & In-Context Learning (sin entrenar) & Sí (ref.) \\
+TabTransformer & Atención sobre categorías          & No \\
+BERT-Tiny      & Transformer texto (4.39M par.)     & Sí (impl.) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Se seleccionaron \textbf{TabPFN} (cero épocas, milisegundos en
+CPU) y \textbf{BERT-Tiny} (Transfer Learning real desde lenguaje
+pre-entrenado). Las 5 variables se serializan como texto
+estructurado (\texttt{"hours studied: 7 previous scores: 99..."})
+para que el tokenizador procese cada registro como secuencia.
+
+# Adaptación del Dataset
+
+El pipeline añade pasos específicos respecto a Semanas 1--2:
+
+\begin{enumerate}
+\item \textbf{Limpieza base:} 127 duplicados eliminados; división
+      80/20 antes del escalado (sin \textit{data leakage}).
+\item \textbf{Serialización a texto:} cada fila tabular se convierte
+      en cadena clave\,:\,valor compatible con BERT.
+\item \textbf{Tokenización:} \texttt{BertTokenizer} (30.522 tokens)
+      + padding fijo a 32 tokens.
+\item \textbf{Normalización del target:} \texttt{Performance Index}
+      escalado a $[0,1]$ para estabilizar el entrenamiento.
+\item \textbf{Pipeline eficiente:} \texttt{tf.data.Dataset} con
+      \texttt{tf.py\_function} para tokenización en tiempo real.
+\end{enumerate}
+
+# Estrategia de Transfer Learning y Fine-Tuning
+
+## Modificación de Arquitectura
+
+Se eliminó la cabeza de clasificación original de BERT-Tiny y se
+añadió una \textbf{cabeza de regresión} sobre el token
+\texttt{[CLS]} de salida (Figura~1).
+
+\begin{figure}[H]
+\centering\small
+\begin{verbatim}
+Texto serializado
+   |
+BertTokenizer (HuggingFace)
+   |
+BERT-Tiny Backbone (4.39M)
+  Embedding        [FROZEN Fases 1-2]
+  Transformer L0   [FROZEN Fases 1-2]
+  Transformer L1   [FROZEN F1/ACTIVO F2]
+   |
+[CLS] -> (batch, 128)
+   |
+BatchNorm->Dense(64,relu)->Dropout(0.3)
+->Dense(32,relu)->Dropout->Dense(1,lin)
+\end{verbatim}
+\caption{Arquitectura BERT-Tiny con cabeza de regresión}
+\end{figure}
+
+## Estrategia de Congelamiento en Dos Fases
+
+\begin{table}[H]
+\caption{Configuración de entrenamiento por fase}
+\centering\small
+\begin{tabular}{@{}p{1.1cm}p{2.0cm}p{0.9cm}p{1.1cm}@{}}
+\toprule
+\textbf{Fase} & \textbf{Capas activas} & \textbf{Params} &
+\textbf{LR} \\
+\midrule
+Fase 1 & Solo cabeza  & $\sim$10K  & 3e-3 \\
+Fase 2 & + Transf. L1 & $\sim$3.5M & 2e-5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Criterio de congelamiento:} en Fase~1, el backbone
+permanece congelado porque la cabeza (pesos aleatorios) generaría
+gradientes destructivos sobre las representaciones pre-entrenadas
+— fenómeno de \textbf{Catastrophic Forgetting}. Al estabilizarse
+Fase~1, se descongela únicamente la última capa Transformer con
+$lr = 2\times10^{-5}$, preservando el conocimiento lingüístico
+en las capas más profundas.
+
+# Entrenamiento y Análisis de Sobreajuste
+
+## Configuración
+
+\begin{itemize}
+\item \textbf{Optimizador:} AdamW (\textit{weight decay}~=~0.01).
+\item \textbf{Pérdida:} MSE en ambas fases.
+\item \textbf{Callbacks:} \texttt{EarlyStopping} (patience=5,
+      restore\_best\_weights), \texttt{ReduceLROnPlateau}
+      (factor=0.5, patience=3), \texttt{ModelCheckpoint}.
+\end{itemize}
+
+## Overfitting observado y estrategia de control
+
+Las curvas de entrenamiento (Figura~2) revelan un
+\textbf{gap tren-validación de $\approx$20\%} en MSE al finalizar
+Fase~2. Este gap es estructural: BERT-Tiny (4.39M parámetros
+activos en Fase~2) tiene capacidad muy superior a la complejidad
+del problema (5 variables, $<$10K muestras). La serialización
+textual agrava esto al generar tokens redundantes
+(\texttt{"hours"} y \texttt{"studied"} como tokens distintos)
+que el Transformer memoriza en lugar de generalizar.
+
+Las medidas de control fueron \texttt{EarlyStopping} (restauró
+los mejores pesos de validación) y Dropout (0.3 y 0.2 en la
+cabeza). El resultado en \textit{test} muestra
+R\textsuperscript{2}~=~0.9047, confirmando generalización
+aceptable pese al gap.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/training_dashboard_full.png}
+\caption{Dashboard de entrenamiento: curvas MSE Fase~1 y Fase~2,
+diagnóstico de predicciones y residuos}
+\end{figure}
+
+# Evaluación del Modelo
+
+## Métricas en conjunto de prueba
+
+\begin{table}[H]
+\caption{Métricas BERT-Tiny --- Conjunto de prueba}
+\centering\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Modelo} & \textbf{MAE} & \textbf{RMSE} &
+\textbf{R\textsuperscript{2}} \\
+\midrule
+BERT-Tiny (TL) & 4.81 & 5.80 & 0.9047 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+## Diagnóstico de predicciones y residuos
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/predictions_analysis.png}
+\caption{Real vs.\ Predicho e histograma de residuos (BERT-Tiny,
+conjunto de prueba)}
+\end{figure}
+
+El gráfico Real vs.\ Predicho muestra alineación razonable con
+la diagonal ideal, con dispersión mayor en valores extremos —
+patrón típico del sobreajuste parcial documentado. Los residuos
+siguen una distribución aproximadamente centrada en cero.
+
+# Interpretabilidad (XAI)
+
+## LIME --- Análisis local
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/lime_explanations.png}
+\caption{LIME: importancia de tokens para bajo, medio y alto
+rendimiento}
+\end{figure}
+
+\texttt{LimeTextExplainer} perturbó el texto serializado para
+tres instancias representativas. \texttt{previous scores} y
+\texttt{hours studied} dominan con pesos positivos en alto
+rendimiento y negativos en bajo rendimiento en todos los casos.
+\texttt{Extracurricular} muestra importancia pequeña y variable,
+señal de contexto más que de predictor.
+
+## SHAP --- Importancia global y comparativa LIME vs.\ SHAP
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/shap_beeswarm.png}
+\caption{SHAP Beeswarm: importancia global (100 instancias,
+KernelExplainer con background $k$-means, $k=50$)}
+\end{figure}
+
+El ranking SHAP confirma: \texttt{Previous Scores} $>$
+\texttt{Hours Studied} $>$ \texttt{Practice Papers} $>$
+\texttt{Sleep Hours} $>$ \texttt{Extracurricular}. La
+Figura~6 compara importancia normalizada entre ambas técnicas.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/lime_vs_shap_comparison.png}
+\caption{Comparativa LIME vs.\ SHAP: importancia normalizada
+por variable. Alta concordancia en los dos predictores dominantes.}
+\end{figure}
+
+La concordancia entre LIME y SHAP en el ranking de las dos
+variables principales valida la robustez de las explicaciones:
+ambas técnicas, con metodologías distintas (aproximación lineal
+local vs.\ valores de Shapley de teoría de juegos), llegan a la
+misma conclusión sobre qué variables impulsan el modelo.
+
+# Comparativa Completa entre Semanas
+
+\begin{table}[H]
+\caption{Comparativa de todos los modelos --- Semanas 1 a 3}
+\centering\small
+\begin{tabular}{@{}p{0.4cm}p{1.6cm}rrrp{1.2cm}@{}}
+\toprule
+\textbf{S.} & \textbf{Modelo} & \textbf{MAE} & \textbf{RMSE} &
+\textbf{R\textsuperscript{2}} & \textbf{Acc.\textsuperscript{*}} \\
+\midrule
+1 & MLP (Adam)      & 1.88 & 2.39 & 0.9800 & 94.58\% \\
+1 & MLP (SGD)       & 3.15 & 4.03 & 0.9564 & 94.58\% \\
+2 & RNN -- GRU      & 1.51 & 2.09 & 0.9882 & 94.58\% \\
+3 & TabPFN          & 1.80 & 2.30 & 0.9800 & $\sim$90\%\textsuperscript{$\dagger$} \\
+3 & BERT-Tiny (TL)  & 4.81 & 5.80 & 0.9047 & $\sim$90\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+# Respuesta a Preguntas de Investigación
+
+\textbf{Pregunta principal --- ¿Qué factores académicos y
+hábitos de estudio permiten predecir el rendimiento académico?}
+
+Los cuatro modelos evaluados en las tres semanas (MLP, GRU,
+TabPFN, BERT-Tiny) coinciden: el \texttt{Performance Index}
+puede predecirse con alta precisión
+(R\textsuperscript{2} entre 0.90 y 0.9882) a partir de las
+5 variables. Las técnicas XAI (LIME, SHAP) e importancia
+por permutación identifican dos factores dominantes:
+\texttt{Previous Scores} (r~=~0.915) y \texttt{Hours Studied}
+(r~=~0.374). Las variables de hábitos (sueño, exámenes de
+práctica, actividades extracurriculares) tienen impacto
+marginal dentro del modelo conjunto.
+
+\textbf{P.S.1 --- ¿Las calificaciones previas son el
+principal predictor?}
+
+\textbf{Sí, de forma consistente en las tres semanas.}
+\texttt{Previous Scores} registra la mayor correlación con
+el target (r~=~0.915), la mayor caída de
+R\textsuperscript{2} al permutarse en la GRU (Semana~2)
+y el mayor valor SHAP absoluto medio sobre BERT-Tiny
+(Semana~3). El hallazgo es robusto a través de cuatro
+arquitecturas y dos técnicas de explicabilidad.
+
+\textbf{P.S.2 --- ¿Estudiar más horas se asocia con mejor
+desempeño?}
+
+\textbf{Sí, con efecto positivo y accionable.} El MLP
+(Semana~1) cuantificó que pasar de 1 a 9 horas diarias
+de estudio eleva el Performance Index predicho en
+$\approx$19.5 puntos (de 44.54 a 64.02), manteniendo las
+demás variables en su valor promedio. LIME y SHAP (Semana~3)
+confirman que \texttt{Hours Studied} es el segundo predictor
+en importancia en todos los niveles de rendimiento.
+
+\textbf{P.S.3 --- ¿Las horas de sueño influyen en el
+rendimiento?}
+
+\textbf{Marginalmente.} El MLP (Semana~1) estimó una
+diferencia de solo 1.74 puntos entre los extremos de horas
+de sueño (4 vs.~9 horas). La importancia por permutación
+(GRU, Semana~2) y SHAP (BERT-Tiny, Semana~3) ubican
+\texttt{Sleep Hours} en tercer o cuarto lugar, con impacto
+muy inferior al de calificaciones previas y horas de estudio.
+
+\textbf{P.S.4 --- ¿Las actividades extracurriculares tienen
+impacto sobre el desempeño?}
+
+\textbf{Mínimo, prácticamente nulo.} El MLP (Semana~1)
+estimó una diferencia de apenas 0.86 puntos entre participar
+o no en actividades extracurriculares. LIME muestra pesos
+pequeños y variables en los tres niveles de rendimiento;
+SHAP la ubica en último lugar en importancia global. Actúa
+como señal de contexto, no como predictor con poder
+explicativo propio.
+
+\textbf{P.S.5 --- ¿La práctica de exámenes contribuye a
+mejorar resultados?}
+
+\textbf{Levemente.} \texttt{Sample Question Papers Practiced}
+aparece en tercer lugar en el ranking SHAP de BERT-Tiny
+(Semana~3), por encima de sueño y actividades
+extracurriculares, pero muy por debajo de calificaciones
+previas y horas de estudio. La correlación directa con el
+target (r~=~0.048) confirma un efecto positivo pequeño pero
+consistente entre modelos.
+
+# Conclusiones
+
+\begin{itemize}
+\item \textbf{La GRU es el mejor modelo del proyecto}
+      (MAE~=~1.51, R\textsuperscript{2}~=~0.9882,
+      Accuracy~=~94.58\%), seguida de TabPFN y MLP-Adam
+      (R\textsuperscript{2}~$\approx$~0.98). La arquitectura
+      especializada supera al conocimiento pre-entrenado
+      genérico cuando el dominio de pre-entrenamiento es
+      ajeno al problema.
+\item \textbf{\texttt{Previous Scores} es el predictor
+      dominante} (r~=~0.915), confirmado por permutación
+      (GRU), LIME y SHAP (BERT-Tiny) en las tres semanas.
+      \texttt{Hours Studied} ocupa el segundo lugar con
+      efecto accionable pedagógicamente. El resto de
+      variables (\texttt{Sleep Hours}, \texttt{Practice
+      Papers}, \texttt{Extracurricular}) tienen impacto
+      marginal y consistente en todos los modelos.
+\item \textbf{Proyección:} la GRU se consolida
+      como arquitectura de producción; SHAP y LIME como
+      capa de explicabilidad ética para docentes y directivos.
+\end{itemize}

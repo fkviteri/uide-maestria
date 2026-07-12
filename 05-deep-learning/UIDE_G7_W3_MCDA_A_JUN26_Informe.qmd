@@ -1,0 +1,321 @@
+---
+format:
+  pdf:
+    documentclass: article
+    classoption: twocolumn
+    geometry:
+      - top=2.2cm
+      - bottom=2.2cm
+      - left=1.5cm
+      - right=1.5cm
+      - headheight=14pt
+    fontsize: 9pt
+    linestretch: 1.15
+    number-sections: true
+    keep-tex: false
+    latex-auto-install: false
+    include-in-header: header.tex
+
+execute:
+  enabled: false
+---
+
+\maketitle
+
+# Resumen del Problema
+
+El presente proyecto optimiza la predicción de rendimiento
+académico mediante \textbf{Transfer Learning} y \textbf{Fine-Tuning},
+aplicando un \textbf{backbone BERT-Tiny} (4.39M parámetros,
+\textit{google/bert\_uncased\_L-2\_H-128\_A-2}) sobre el
+\textit{Student Performance Dataset} de Kaggle (10.000 registros),
+serializando las 5 variables tabulares como texto estructurado.
+Se complementa con \textbf{TabPFN} como modelo fundacional de
+referencia, y se incorporan \textbf{LIME} y \textbf{SHAP} para
+validar las decisiones del modelo. Este informe cierra el ciclo
+de tres semanas comparando MLP, GRU y BERT-Tiny con métricas
+homogéneas.
+
+\begingroup\small
+\textbf{Pregunta principal:} ¿Puede el Transfer Learning desde un
+modelo de lenguaje pre-entrenado igualar la eficiencia de modelos
+entrenados desde cero para datos tabulares?
+
+\textbf{Preguntas secundarias:} ¿Qué capas conviene congelar?
+¿Cómo se gestiona el sobreajuste en fine-tuning? ¿Coinciden LIME
+y SHAP con la importancia de variables observada en semanas previas?
+
+\textbf{Notebook:}
+\href{https://github.com/jeffersonrodriguezc/deep-learning-en-3-semanas}{Ver
+en GitHub}
+\endgroup
+
+# Selección y Justificación del Modelo
+
+## Comparativa de Arquitecturas
+
+Se evaluaron cuatro arquitecturas candidatas antes de seleccionar
+la estrategia final (Tabla~1).
+
+\begin{table}[H]
+\caption{Arquitecturas pre-entrenadas evaluadas}
+\centering\small
+\begin{tabular}{@{}p{1.5cm}p{3.0cm}p{1.6cm}@{}}
+\toprule
+\textbf{Modelo} & \textbf{Enfoque} & \textbf{Selec.} \\
+\midrule
+TabNet         & Atención dispersa secuencial    & No \\
+TabPFN         & In-Context Learning (sin entrenar) & Sí (ref.) \\
+TabTransformer & Atención sobre categorías       & No \\
+BERT-Tiny      & Transformer texto (4.39M par.)  & Sí (impl.) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Se seleccionaron \textbf{TabPFN} (viabilidad computacional: cero
+épocas, milisegundos en CPU) y \textbf{BERT-Tiny} (Transfer
+Learning real desde lenguaje pre-entrenado). Las 5 variables se
+serializan como texto estructurado
+(\texttt{"hours studied: 7 previous scores: 99..."}) para que
+el tokenizador procese cada registro como secuencia de tokens.
+
+# Adaptación del Dataset
+
+El pipeline añade tres pasos específicos respecto a Semanas 1--2:
+
+\begin{enumerate}
+\item \textbf{Limpieza base:} 127 duplicados eliminados; división
+      80/20 antes del escalado (sin \textit{data leakage}).
+\item \textbf{Serialización a texto:} cada fila tabular se convierte
+      en cadena clave\,:\,valor compatible con el tokenizador BERT.
+\item \textbf{Tokenización:} \texttt{BertTokenizer} (30.522 tokens)
+      + padding fijo a 32 tokens.
+\item \textbf{Normalización del target:} \texttt{Performance Index}
+      escalado a $[0,1]$ para estabilizar el entrenamiento.
+\item \textbf{Pipeline eficiente:} \texttt{tf.data.Dataset} con
+      \texttt{tf.py\_function} para tokenización en tiempo real
+      sin cargar todo el dataset en memoria.
+\end{enumerate}
+
+# Estrategia de Transfer Learning y Fine-Tuning
+
+## Modificación de Arquitectura
+
+Se eliminó la cabeza de clasificación original de BERT-Tiny y se
+añadió una \textbf{cabeza de regresión} sobre el token
+\texttt{[CLS]} de salida (Figura~1).
+
+\begin{figure}[H]
+\centering\small
+\begin{verbatim}
+Texto serializado
+   |
+BertTokenizer (HuggingFace)
+   |
+BERT-Tiny Backbone (4.39M)
+  Embedding        [FROZEN Fases 1-2]
+  Transformer L0   [FROZEN Fases 1-2]
+  Transformer L1   [FROZEN F1/ACTIVO F2]
+   |
+[CLS] -> (batch, 128)
+   |
+BatchNorm->Dense(64,relu)->Dropout(0.3)
+->Dense(32,relu)->Dropout->Dense(1,lin)
+\end{verbatim}
+\caption{Arquitectura BERT-Tiny con cabeza de regresión}
+\end{figure}
+
+## Estrategia de Congelamiento en Dos Fases
+
+\begin{table}[H]
+\caption{Configuración de entrenamiento por fase}
+\centering\small
+\begin{tabular}{@{}p{1.1cm}p{2.0cm}p{0.9cm}p{1.1cm}@{}}
+\toprule
+\textbf{Fase} & \textbf{Capas activas} & \textbf{Params} &
+\textbf{LR} \\
+\midrule
+Fase 1 & Solo cabeza  & $\sim$10K  & 3e-3 \\
+Fase 2 & + Transf. L1 & $\sim$3.5M & 2e-5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Criterio de congelamiento:} en Fase~1, el backbone
+permanece congelado porque la cabeza (pesos aleatorios al inicio)
+generaría gradientes destructivos sobre las representaciones
+pre-entrenadas — fenómeno de \textbf{Catastrophic Forgetting}.
+Al estabilizarse la Fase~1, se descongela únicamente la última
+capa Transformer con un \textit{learning rate} conservador
+($2\times10^{-5}$), preservando el conocimiento lingüístico
+general en las capas más profundas.
+
+# Entrenamiento y Análisis de Sobreajuste
+
+## Configuración
+
+\begin{itemize}
+\item \textbf{Optimizador:} AdamW (\textit{weight decay}~=~0.01).
+\item \textbf{Pérdida:} MSE en ambas fases.
+\item \textbf{Callbacks:} \texttt{EarlyStopping} (patience=5,
+      restore\_best\_weights), \texttt{ReduceLROnPlateau}
+      (factor=0.5, patience=3), \texttt{ModelCheckpoint}.
+\end{itemize}
+
+## Overfitting observado y estrategia de control
+
+Las curvas de entrenamiento (Figura~2) revelan un
+\textbf{gap tren-validación de $\approx$20\%} en la pérdida MSE
+al finalizar la Fase~2. Este gap es estructural: el modelo
+BERT-Tiny (4.39M parámetros activos en Fase~2) tiene una
+capacidad representacional muy superior a la complejidad del
+problema (5 variables, $<$10K muestras). Adicionalmente, la
+serialización textual introduce tokens redundantes
+(\texttt{"hours"} y \texttt{"studied"} como dos tokens distintos),
+que el Transformer memoriza en lugar de generalizar.
+
+Las medidas de control aplicadas fueron \texttt{EarlyStopping}
+(que restauró automáticamente los mejores pesos de validación)
+y Dropout (0.3 y 0.2 en la cabeza de regresión). El resultado
+en \textit{test} — conjunto nunca visto durante entrenamiento
+ni selección de pesos — muestra R\textsuperscript{2}~=~0.9047,
+confirmando que el modelo generaliza de forma aceptable a pesar
+del gap.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/training_dashboard_full.png}
+\caption{Dashboard de entrenamiento: curvas MSE Fase~1 y
+Fase~2, diagnóstico de predicciones y residuos}
+\end{figure}
+
+# Evaluación del Modelo
+
+## Métricas en conjunto de prueba
+
+\begin{table}[H]
+\caption{Métricas BERT-Tiny --- Conjunto de prueba}
+\centering\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Modelo} & \textbf{MAE} & \textbf{RMSE} &
+\textbf{R\textsuperscript{2}} \\
+\midrule
+BERT-Tiny (TL) & 4.81 & 5.80 & 0.9047 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+## Diagnóstico de predicciones y residuos
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/predictions_analysis.png}
+\caption{Real vs.\ Predicho e histograma de residuos}
+\end{figure}
+
+El gráfico Real vs.\ Predicho muestra alineación razonable con
+la diagonal ideal, con mayor dispersión en valores extremos —
+patrón consistente con el sobreajuste parcial documentado. Los
+residuos siguen una distribución aproximadamente centrada en cero.
+
+# Interpretabilidad (XAI)
+
+## LIME --- Análisis local
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/lime_explanations.png}
+\caption{LIME: importancia de tokens para tres niveles de
+rendimiento}
+\end{figure}
+
+\texttt{LimeTextExplainer} perturbó el texto serializado para
+tres instancias (rendimiento bajo, medio y alto). En todos los
+casos, \texttt{previous scores} y \texttt{hours studied} dominan
+con pesos positivos en alto rendimiento y negativos en bajo
+rendimiento. \texttt{Extracurricular} muestra importancia
+pequeña y variable —señal de contexto, no predictor principal—,
+consistente con la importancia por permutación de la Semana~2.
+
+## SHAP --- Importancia global
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/shap_beeswarm.png}
+\caption{SHAP Beeswarm: importancia global (100 instancias de
+prueba, KernelExplainer con background $k$-means, $k=50$)}
+\end{figure}
+
+El ranking SHAP confirma: \texttt{Previous Scores} $>$
+\texttt{Hours Studied} $>$ \texttt{Practice Papers} $>$
+\texttt{Sleep Hours} $>$ \texttt{Extracurricular}. Alta
+concordancia con LIME y con la importancia por permutación
+obtenida en la Semana~2 con la GRU.
+
+# Comparativa Completa entre Semanas
+
+\begin{table}[H]
+\caption{Comparativa de todos los modelos --- Semanas 1 a 3}
+\centering\small
+\begin{tabular}{@{}p{0.5cm}p{1.8cm}rrr@{}}
+\toprule
+\textbf{S.} & \textbf{Modelo} & \textbf{MAE} & \textbf{RMSE} &
+\textbf{R\textsuperscript{2}} \\
+\midrule
+1 & MLP (Adam)     & 1.88 & 2.39 & 0.98   \\
+2 & RNN -- GRU     & 1.30 & 1.60 & 0.99   \\
+3 & TabPFN         & ---  & ---  & ref.\textsuperscript{$\dagger$} \\
+3 & BERT-Tiny (TL) & 4.81 & 5.80 & 0.9047 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+# Conclusiones
+
+\textbf{Sobre Transfer Learning y sobreajuste:}
+
+\begin{itemize}
+\item \textbf{La convergencia rápida de Fase~1 valida el
+      paradigma:} con $\sim$10K parámetros entrenables, el
+      backbone pre-entrenado provee representaciones suficientes
+      para que la cabeza converja sin inestabilidad, algo que no
+      ocurriría con pesos aleatorios en un Transformer completo.
+\item \textbf{El gap tren-val del $\approx$20\% es estructural,
+      no un error de configuración:} refleja la desproporción
+      entre la capacidad del modelo (4.39M parámetros) y la
+      complejidad del problema (5 variables, $<$10K muestras).
+      Fue controlado con \texttt{EarlyStopping} y Dropout; el
+      modelo final generaliza correctamente en test
+      (R\textsuperscript{2}~=~0.9047).
+\item \textbf{El descongelamiento gradual es determinante:}
+      iniciar Fase~2 con la cabeza estabilizada y
+      $lr = 2\times10^{-5}$ previene el olvido catastrófico
+      y mejora la convergencia respecto a estrategias de
+      descongelamiento total desde el inicio.
+\end{itemize}
+
+\textbf{Sobre la comparativa entre semanas:}
+
+\begin{itemize}
+\item \textbf{La GRU es el mejor modelo del proyecto} en
+      precisión (MAE~=~1.30, R\textsuperscript{2}~=~0.99),
+      seguida del MLP (MAE~=~1.88, R\textsuperscript{2}~=~0.98).
+      BERT-Tiny, pese a su mayor número de parámetros, no supera
+      a modelos más simples entrenados nativamente sobre datos
+      numéricos tabulares.
+\item \textbf{La especialización arquitectónica supera al
+      conocimiento pre-entrenado genérico} en este dominio: la
+      serialización textual introduce ruido que modelos como MLP
+      y GRU no padecen al trabajar directamente sobre valores
+      numéricos.
+\item \textbf{LIME y SHAP son coherentes entre sí y con las
+      semanas previas:} \texttt{Previous Scores} y
+      \texttt{Hours Studied} dominan en todas las semanas y con
+      todas las arquitecturas, confirmando la robustez del
+      hallazgo independientemente del modelo.
+\item \textbf{Proyección Kami-UIDE:} la GRU se consolida como
+      arquitectura de producción para predecir rendimiento en
+      UIDE; SHAP y LIME se incorporan como capa de
+      explicabilidad ética para docentes y directivos.
+\end{itemize}

@@ -1,0 +1,311 @@
+---
+format:
+  pdf:
+    documentclass: article
+    classoption: twocolumn
+    geometry:
+      - top=2.2cm
+      - bottom=2.2cm
+      - left=1.5cm
+      - right=1.5cm
+      - headheight=14pt
+    fontsize: 9pt
+    linestretch: 1.15
+    number-sections: true
+    keep-tex: false
+    latex-auto-install: false
+    include-in-header: header.tex
+
+execute:
+  enabled: false
+---
+
+\maketitle
+
+# Resumen del Problema
+
+El presente proyecto implementa un Perceptrón Multicapa (MLP) para predecir el rendimiento académico de estudiantes a partir de variables relacionadas con sus hábitos de estudio y antecedentes académicos, utilizando el *Student Performance Dataset* de Kaggle.
+
+La variable objetivo es \texttt{Performance Index}, una medida numérica continua del desempeño estudiantil. Al ser una variable continua, el problema se aborda como una \textbf{tarea de regresión supervisada}. La arquitectura seleccionada es un MLP implementado en Keras/TensorFlow, adecuado para datos tabulares con relaciones lineales y no lineales.
+
+\begingroup\small
+\textbf{Pregunta principal:} ¿Qué factores académicos y hábitos
+de estudio permiten predecir el rendimiento académico de un estudiante?
+
+\textbf{Preguntas secundarias:} ¿Son las calificaciones previas el
+principal predictor? ¿Estudiar más horas mejora el desempeño?
+¿Influyen las horas de sueño y las actividades extracurriculares?
+\endgroup
+
+# Preparación del Dataset
+
+## Descripción del Dataset
+
+El Student Performance Dataset fue obtenido de Kaggle y contiene información de 10.000 estudiantes. Cada registro incluye variables relacionadas con hábitos de estudio, antecedentes académicos y actividades complementarias. La variable objetivo, \texttt{Performance Index}, es una medida numérica continua del desempeño académico que toma valores entre 10 y 100 puntos. El conjunto no presenta desbalance, lo que lo hace adecuado para aplicar técnicas de regresión supervisada.
+
+\begin{table}[h]
+\caption{Resumen general del dataset}
+\centering\small
+\begin{tabular}{@{}lp{3.5cm}@{}}
+\toprule
+\textbf{Característica} & \textbf{Descripción} \\
+\midrule
+Número de muestras     & 10.000 registros \\
+Variables predictoras  & 5 (4 num., 1 categ.) \\
+Variable objetivo      & Performance Index \\
+Tipo de tarea          & Regresión supervisada \\
+Tipo de variables      & Numéricas + categórica binaria \\
+Rango del target       & 10 -- 100 puntos \\
+Valores faltantes      & Ninguno \\
+\bottomrule
+\end{tabular}
+\end{table}
+\begin{table}[H]
+\caption{Variables del modelo}
+\centering\small
+\begin{tabular}{@{}p{2.3cm}p{2.0cm}p{1.3cm}@{}}
+\toprule
+\textbf{Variable} & \textbf{Tipo} & \textbf{Rol} \\
+\midrule
+Hours Studied        & Numérica         & Predictora \\
+Previous Scores      & Numérica         & Predictora \\
+Extracurricular Act. & Categ. (binaria) & Predictora \\
+Sleep Hours          & Numérica         & Predictora \\
+Sample Q. Papers     & Numérica         & Predictora \\
+Performance Index    & Numérica         & Objetivo   \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Las variables predictoras recogen distintas dimensiones del proceso de aprendizaje: \texttt{Hours Studied} indica el número de horas diarias dedicadas al estudio; \texttt{Previous Scores} refleja el rendimiento académico histórico del estudiante; \texttt{Extracurricular Activities} señala si el estudiante participa en actividades fuera del aula (Yes/No, codificada como 1/0); \texttt{Sleep Hours} registra las horas de sueño por noche; y \texttt{Sample Question Papers Practiced} cuenta el número de exámenes de práctica resueltos. La variable objetivo \texttt{Performance Index} representa el nivel de desempeño académico alcanzado, expresado en una escala continua de 10 a 100 puntos.
+
+La distribución del \texttt{Performance Index} es aproximadamente uniforme, con media y mediana muy similares (Figura 1). La matriz de correlación (Figura 2) confirma que \texttt{Previous Scores} es la variable más asociada al rendimiento (r = 0.915), seguida de \texttt{Hours Studied} (r = 0.374).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/fig_01_dist_target.png}
+\caption{Distribución del Performance Index}
+\end{figure}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/fig_09_correlacion.png}
+\caption{Matriz de correlación entre variables numéricas}
+\end{figure}
+
+## Preprocesamiento y División
+
+El flujo de preprocesamiento siguió cuatro pasos:
+
+\begin{enumerate}
+\item \textbf{Eliminación de duplicados}: remoción de registros repetidos.
+\item \textbf{Codificación binaria}: \texttt{Extracurricular Activities}: Yes = 1, No = 0.
+\item \textbf{División 80/20} \textit{antes} del escalado, para evitar \textit{data leakage}.
+\item \textbf{StandardScaler} ajustado exclusivamente con datos de entrenamiento y aplicado a ambos conjuntos.
+\end{enumerate}
+
+La proporción \textbf{80/20} se justifica porque con
+\textasciitilde10.000 registros el 80\% garantiza variabilidad
+suficiente para el aprendizaje de la red; el 20\%
+(\textasciitilde2.000 registros) ofrece una estimación confiable del error de generalización con baja varianza.
+
+# Implementación y Entrenamiento
+
+## Arquitectura MLP
+
+\begin{table}[H]
+\caption{Arquitectura del modelo MLP}
+\centering\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Capa} & \textbf{Neuronas} & \textbf{Activación} \\
+\midrule
+Entrada   & 5    & ---    \\
+Oculta 1  & 64   & ReLU   \\
+Dropout 1 & 20\% & ---    \\
+Oculta 2  & 32   & ReLU   \\
+Dropout 2 & 20\% & ---    \\
+Oculta 3  & 16   & ReLU   \\
+Salida    & 1    & Lineal \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La arquitectura decreciente (64 $\to$ 32 $\to$ 16) extrae representaciones progresivamente más abstractas. Se eligió \textbf{ReLU} para evitar el gradiente desvaneciente. El \textbf{Dropout (20\%)} regulariza el modelo reduciendo el sobreajuste. La salida es \textbf{una neurona sin activación} (regresión de valor continuo). La función de pérdida es \textbf{MSE} y el optimizador base es \textbf{Adam} con \textit{learning rate} = 0.001.
+
+## Entrenamiento del Modelo Base
+
+El modelo fue entrenado durante 100 épocas con \texttt{batch\_size=32} y validación interna del 20% del conjunto de entrenamiento. La Figura 3 muestra la evolución del MSE y MAE, con reducción sostenida del error en entrenamiento y validación, sin señales de sobreajuste.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/fig_10_base_curvas.png}
+\caption{Curvas de entrenamiento del modelo base (MSE y MAE)}
+\end{figure}
+
+# Técnica de Mejora: Optimizadores
+
+Se compararon \textbf{Adam} y \textbf{SGD} manteniendo idéntica arquitectura, datos y número de épocas. La única variable modificada fue el algoritmo de optimización, siguiendo la opción \textit{Solucionador / Optimizador} de la guía de actividad.
+
+\begin{itemize}
+\item \textbf{Adam} --- tasas de aprendizaje adaptativas por parámetro; convergencia rápida con menor error de validación.
+\item \textbf{SGD} (\textit{lr} = 0.001, sin \textit{momentum}) --- gradiente acumulado del mini-batch; convergencia más lenta.
+\end{itemize}
+\begin{table}[H]
+\caption{Métricas al final del entrenamiento (validación)}
+\centering\small
+\begin{tabular}{@{}lrr@{}}
+\toprule
+\textbf{Optimizador} & \textbf{Loss val.} & \textbf{MAE val.} \\
+\midrule
+Adam & 5.63  & 1.87 \\
+SGD  & 14.28 & 3.04 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Las curvas de pérdida de ambos modelos se muestran en la Figura 4. Adam converge más rápido y alcanza menor error de validación.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/fig_11_curvas_perdida.png}
+\caption{Curvas de pérdida: Adam vs SGD}
+\end{figure}
+
+# Evaluación del Modelo
+
+## Métricas en el Conjunto de Prueba
+
+\begin{table}[H]
+\caption{Métricas de regresión --- Conjunto de prueba}
+\centering\small
+\begin{tabular}{@{}p{2.6cm}rrrr@{}}
+\toprule
+\textbf{Modelo} & \textbf{MSE} & \textbf{RMSE} & \textbf{MAE} & \textbf{R\textsuperscript{2}} \\
+\midrule
+Adam + Dropout & 5.73  & 2.39 & 1.88 & 0.98 \\
+SGD + Dropout  & 15.16 & 3.89 & 3.15 & 0.96 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+El modelo Adam obtuvo un \textbf{R\textsuperscript{2} = 0.98}, explicando el 98% de la variabilidad del \texttt{Performance Index}, con un MAE de apenas 1.88 puntos. SGD alcanzó R\textsuperscript{2} = 0.96 con mayor error en todas las métricas.
+
+## Análisis de Overfitting
+
+\begin{table}[H]
+\caption{Análisis de overfitting --- Modelo Adam}
+\centering\small
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Conjunto} & \textbf{RMSE} \\
+\midrule
+Entrenamiento & 3.80 \\
+Prueba        & 3.89 \\
+Diferencia    & 0.09 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La diferencia de 0.09 puntos entre RMSE de entrenamiento y prueba indica \textbf{ausencia de sobreajuste}. El Dropout contribuyó a esta estabilidad.
+
+## Predicciones y Residuos
+
+Los gráficos de la Figura 5 muestran alineación muy cercana a la diagonal de predicción perfecta. La Figura 6 confirma residuos centrados cerca de cero. La Figura 7 resume la comparación final.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/fig_12_pred_vs_real.png}
+\caption{Predicciones vs valores reales: Adam (izq.) y SGD (der.)}
+\end{figure}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/fig_13_residuos.png}
+\caption{Distribución de residuos: Adam (izq.) y SGD (der.)}
+\end{figure}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\columnwidth]{quarto_assets/figures/fig_14_comparacion_metricas.png}
+\caption{Comparación de métricas finales: Adam vs SGD}
+\end{figure}
+
+# Respuesta a Preguntas Secundarias
+
+Utilizando el modelo Adam, se construyeron casos hipotéticos con valores promedio variando únicamente la variable de interés.
+
+\begin{table}[H]
+\caption{Rendimiento esperado según horas de estudio}
+\centering\small
+\begin{tabular}{@{}rr@{}}
+\toprule
+\textbf{Horas estudio} & \textbf{Performance Index predicho} \\
+\midrule
+1 & 44.54 \\
+2 & 47.41 \\
+3 & 49.27 \\
+4 & 51.67 \\
+5 & 53.90 \\
+6 & 56.40 \\
+7 & 58.78 \\
+8 & 61.40 \\
+9 & 64.02 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+El modelo revela una relación positiva y consistente entre las horas de estudio y el rendimiento académico. Pasar de 1 a 9 horas diarias de estudio incrementa, en promedio, el Performance Index predicho en 19.48 puntos, pasando de 44.54 a 64.02. Este resultado confirma que las horas de estudio constituyen uno de los factores modificables con mayor impacto sobre el desempeño estudiantil.
+
+\begin{table}[H]
+\caption{Rendimiento esperado según horas de sueño}
+\centering\small
+\begin{tabular}{@{}rr@{}}
+\toprule
+\textbf{Horas de sueño} & \textbf{Performance Index predicho} \\
+\midrule
+4 & 53.63 \\
+5 & 53.87 \\
+6 & 54.14 \\
+7 & 54.42 \\
+8 & 54.75 \\
+9 & 55.36 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+El efecto de las horas de sueño sobre el rendimiento es moderado: pasar de 4 a 9 horas incrementa el Performance Index predicho en promedio 1.74 puntos, lo que sugiere que esta variable tiene una influencia marginal en comparación con las calificaciones previas o las horas de estudio.
+
+\begin{table}[H]
+\caption{Rendimiento según participación extracurricular}
+\centering\small
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Participación} & \textbf{Performance Index predicho} \\
+\midrule
+No participa & 54.29 \\
+Participa    & 55.15 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La diferencia entre participar o no en actividades extracurriculares es en promedio 0.86 puntos, un efecto prácticamente nulo. El modelo no encuentra evidencia de que esta variable influya de manera relevante en el rendimiento académico dentro de este dataset.
+
+# Conclusiones
+
+\textbf{Sobre los hallazgos del modelo:}
+
+\begin{itemize}
+\item \textbf{Calificaciones previas como predictor dominante:} con r = 0.915, es la variable más determinante del rendimiento futuro.
+\item \textbf{Horas de estudio con efecto accionable:} pasar de 1 a 9 horas incrementa el Performance Index en \textasciitilde19.5 puntos.
+\item \textbf{Sueño y exámenes de práctica con efecto marginal:} apenas 1.74 puntos de diferencia entre extremos de horas de sueño.
+\item \textbf{Actividades extracurriculares sin impacto relevante:} diferencia de 0.86 puntos entre participar o no.
+\item \textbf{Adam superó a SGD en generalización:} R\textsuperscript{2} = 0.98 vs 0.96, MAE = 1.88 vs 3.15 en conjunto de prueba.
+\item \textbf{Ausencia de sobreajuste:} diferencia de 0.09 en RMSE entre entrenamiento y prueba; Dropout efectivo.
+\end{itemize}
+
+\textbf{Sobre el proceso de modelado:}
+
+\begin{itemize}
+\item \textbf{Preprocesamiento crítico:} evitar data leakage fue determinante para obtener métricas confiables.
+\item \textbf{Arquitectura 64 $\to$ 32 $\to$ 16 adecuada:} balance correcto entre capacidad y complejidad para 5 variables de entrada.
+\item \textbf{Resultado contraintuitivo en optimizadores:} SGD tuvo menor loss en entrenamiento, pero Adam generalizó mejor en prueba.
+\item \textbf{100 épocas no óptimo:} las curvas sugieren que Early Stopping habría sido suficiente.
+\end{itemize}
