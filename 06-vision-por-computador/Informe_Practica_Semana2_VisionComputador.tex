@@ -1,0 +1,395 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\PassOptionsToPackage{dvipsnames,svgnames,x11names}{xcolor}
+%
+\documentclass[
+  twocolumn,
+  10pt]{article}
+
+\usepackage{amsmath,amssymb}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math}
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else  
+    % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{xcolor}
+\usepackage[margin=2cm]{geometry}
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+% Make \paragraph and \subparagraph free-standing
+\makeatletter
+\ifx\paragraph\undefined\else
+  \let\oldparagraph\paragraph
+  \renewcommand{\paragraph}{
+    \@ifstar
+      \xxxParagraphStar
+      \xxxParagraphNoStar
+  }
+  \newcommand{\xxxParagraphStar}[1]{\oldparagraph*{#1}\mbox{}}
+  \newcommand{\xxxParagraphNoStar}[1]{\oldparagraph{#1}\mbox{}}
+\fi
+\ifx\subparagraph\undefined\else
+  \let\oldsubparagraph\subparagraph
+  \renewcommand{\subparagraph}{
+    \@ifstar
+      \xxxSubParagraphStar
+      \xxxSubParagraphNoStar
+  }
+  \newcommand{\xxxSubParagraphStar}[1]{\oldsubparagraph*{#1}\mbox{}}
+  \newcommand{\xxxSubParagraphNoStar}[1]{\oldsubparagraph{#1}\mbox{}}
+\fi
+\makeatother
+
+
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}\usepackage{longtable,booktabs,array}
+\usepackage{calc} % for calculating minipage widths
+% Correct order of tables after \paragraph or \subparagraph
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+% Allow footnotes in longtable head/foot
+\IfFileExists{footnotehyper.sty}{\usepackage{footnotehyper}}{\usepackage{footnote}}
+\makesavenoteenv{longtable}
+\usepackage{graphicx}
+\makeatletter
+\newsavebox\pandoc@box
+\newcommand*\pandocbounded[1]{% scales image to fit in text height/width
+  \sbox\pandoc@box{#1}%
+  \Gscale@div\@tempa{\textheight}{\dimexpr\ht\pandoc@box+\dp\pandoc@box\relax}%
+  \Gscale@div\@tempb{\linewidth}{\wd\pandoc@box}%
+  \ifdim\@tempb\p@<\@tempa\p@\let\@tempa\@tempb\fi% select the smaller of both
+  \ifdim\@tempa\p@<\p@\scalebox{\@tempa}{\usebox\pandoc@box}%
+  \else\usebox{\pandoc@box}%
+  \fi%
+}
+% Set default figure placement to htbp
+\def\fps@figure{htbp}
+\makeatother
+
+\usepackage{fontspec}
+\setmainfont{Times New Roman}
+\usepackage{fancyhdr}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf}
+\usepackage[none]{hyphenat}
+\usepackage{titlesec}
+\titleformat{\section}{\normalfont\fontsize{11}{13}\bfseries}{\thesection.}{0.5em}{\MakeUppercase}
+\titlespacing*{\section}{0pt}{10pt}{4pt}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[C]{\footnotesize Maestría en Inteligencia Artificial Aplicada, UIDE — Visión por Computador — Práctica Semana 2}
+\setlength{\columnsep}{0.6cm}
+\makeatletter
+\@ifpackageloaded{caption}{}{\usepackage{caption}}
+\AtBeginDocument{%
+\ifdefined\contentsname
+  \renewcommand*\contentsname{Table of contents}
+\else
+  \newcommand\contentsname{Table of contents}
+\fi
+\ifdefined\listfigurename
+  \renewcommand*\listfigurename{List of Figures}
+\else
+  \newcommand\listfigurename{List of Figures}
+\fi
+\ifdefined\listtablename
+  \renewcommand*\listtablename{List of Tables}
+\else
+  \newcommand\listtablename{List of Tables}
+\fi
+\ifdefined\figurename
+  \renewcommand*\figurename{Figure}
+\else
+  \newcommand\figurename{Figure}
+\fi
+\ifdefined\tablename
+  \renewcommand*\tablename{Table}
+\else
+  \newcommand\tablename{Table}
+\fi
+}
+\@ifpackageloaded{float}{}{\usepackage{float}}
+\floatstyle{ruled}
+\@ifundefined{c@chapter}{\newfloat{codelisting}{h}{lop}}{\newfloat{codelisting}{h}{lop}[chapter]}
+\floatname{codelisting}{Listing}
+\newcommand*\listoflistings{\listof{codelisting}{List of Listings}}
+\makeatother
+\makeatletter
+\makeatother
+\makeatletter
+\@ifpackageloaded{caption}{}{\usepackage{caption}}
+\@ifpackageloaded{subcaption}{}{\usepackage{subcaption}}
+\makeatother
+
+\usepackage{bookmark}
+
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same} % disable monospaced font for URLs
+\hypersetup{
+  colorlinks=true,
+  linkcolor={blue},
+  filecolor={Maroon},
+  citecolor={Blue},
+  urlcolor={Blue},
+  pdfcreator={LaTeX via pandoc}}
+
+
+\author{}
+\date{}
+
+\begin{document}
+
+
+\twocolumn[
+\begin{center}
+{\fontspec{Arial}\bfseries\fontsize{16}{19}\selectfont Detección automática de incendios: comparación de descriptores clásicos de textura y arquitecturas de aprendizaje profundo sobre imágenes reales}\\[8pt]
+{\fontspec{Times New Roman}\fontsize{12}{14}\selectfont [Nombre Apellido 1], [Nombre Apellido 2], [Nombre Apellido 3] — Grupo 2}\textbackslash{[}4pt{]}
+\{\fontspec{Times New Roman}\itshape\fontsize{10}{12}\selectfont Maestría en Inteligencia Artificial Aplicada, Universidad Internacional del Ecuador (UIDE), Quito, Ecuador\}
+\textbackslash end\{center\} \vspace{10pt}
+
+\noindent\textbf{\textit{Resumen}} --- Este trabajo compara descriptores
+clásicos de textura (HOG, Gabor, GLCM/Haralick, LBP, SIFT/ORB) contra
+arquitecturas de aprendizaje profundo (CNN entrenada desde cero,
+transfer learning y fine-tuning con MobileNetV2) para la clasificación
+de imágenes de incendios forestales, usando el conjunto de datos real
+``Fire Dataset'' (Kaggle, 799 imágenes de entrenamiento, 200 de prueba).
+Los resultados muestran que el transfer learning con MobileNetV2 alcanza
+el mejor desempeño (91.00\% de accuracy), superando a la CNN entrenada
+desde cero (84.00\%) y a los descriptores clásicos combinados con SVM
+(84.00\%). Se documenta además un hallazgo relevante en el análisis de
+textura: las regiones de fuego presentan mayor energía de Haralick
+(mayor uniformidad de intensidad) que el fondo sin incendio, contrario a
+la intuición inicial. Finalmente, se discute por qué el accuracy global
+puede ser una métrica insuficiente en aplicaciones de seguridad, dado
+que el costo de un falso negativo (incendio no detectado) supera
+ampliamente al de un falso positivo.
+
+\vspace{6pt}
+
+\noindent\textbf{\textit{Palabras Clave}} --- visión por computador,
+detección de incendios, HOG, GLCM, redes neuronales convolucionales,
+transfer learning, MobileNetV2. \vspace{10pt} {]}
+
+\subsection{Introducción y
+metodología}\label{introducciuxf3n-y-metodologuxeda}
+
+La detección temprana de incendios mediante visión por computador es un
+caso de uso crítico donde el costo de los distintos tipos de error no es
+simétrico: no detectar un incendio real (falso negativo) es
+considerablemente más grave que activar una alerta innecesaria (falso
+positivo). Este trabajo evalúa dos familias de enfoques ---descriptores
+clásicos de textura/forma y aprendizaje profundo--- sobre el conjunto de
+datos ``Fire Dataset'' de Kaggle (799 imágenes de entrenamiento, 200 de
+prueba, 224×224 px, escala de grises), siguiendo el pipeline de la guía
+de práctica de la Semana 2 (Sesión 1: reconocimiento de patrones; Sesión
+2: redes neuronales convolucionales).
+
+\subsection{Descriptores clásicos de textura y forma (Sesión
+1)}\label{descriptores-cluxe1sicos-de-textura-y-forma-sesiuxf3n-1}
+
+\textbf{HOG.} Al aumentar el tamaño de celda de 8×8 a 16×16 píxeles, el
+vector descriptor se redujo de 26 244 a 6 084 elementos, consecuencia
+directa de que el número de celdas de la malla se reduce a la cuarta
+parte.
+
+\textbf{Filtros de Gabor.} Un banco ampliado de 4 a 5 orientaciones
+reveló una nueva activación direccional, confirmando la sensibilidad
+angular de estos filtros.
+
+\textbf{HOG + SVM.} El kernel RBF (84.00\%) superó marginalmente al
+lineal (83.50\%), sugiriendo que el descriptor HOG ya es razonablemente
+separable de forma lineal.
+
+\textbf{PCA + K-means.} Al incrementar \emph{k} de 2 a 3, el algoritmo
+fragmentó geométricamente el grupo mayoritario en dos subgrupos, sin
+corresponder a una clase real ---evidencia de que K-means agrupa por
+densidad espacial, no por semántica.
+
+\textbf{GLCM/Haralick y LBP.} Se comparó la propiedad \emph{energy}
+entre tres muestras reales del dataset (Tabla 1, Figura 1).
+
+\begin{center}
+\small
+\begin{tabular}{@{}lc@{}}
+\toprule
+\textbf{Muestra} & \textbf{Energía (GLCM)} \\
+\midrule
+Fuego — muestra 1 & 0.0355 \\
+Fuego — muestra 2 & 0.0274 \\
+Fondo sin incendio & 0.0101 \\
+\bottomrule
+\end{tabular}
+\captionof{table}{Comparación de energía de Haralick entre muestras reales del dataset.}
+\end{center}
+
+\begin{figure}[H]
+
+{\centering \includegraphics[width=0.95\linewidth,height=\textheight,keepaspectratio]{figuras/sec08_glcm_comparacion_energia.png}
+
+}
+
+\caption{Comparación de energía GLCM entre las 3 muestras del dataset
+propio.}
+
+\end{figure}%
+
+Las regiones de fuego presentan \textbf{mayor} energía que el fondo,
+resultado contraintuitivo: la energía mide uniformidad de intensidades,
+y las llamas generan grandes zonas contiguas de brillo saturado,
+mientras que el fondo (con múltiples elementos de escena) dispersa más
+las co-ocurrencias de intensidad.
+
+\textbf{SIFT/ORB.} Al elevar \texttt{nfeatures} de 200 a 500, los puntos
+clave detectados subieron de \textasciitilde142 a \textasciitilde165 por
+imagen, y las coincidencias válidas de 107 a 122.
+
+\subsection{Redes neuronales convolucionales y aplicaciones de IA
+(Sesión
+2)}\label{redes-neuronales-convolucionales-y-aplicaciones-de-ia-sesiuxf3n-2}
+
+\textbf{Procesamiento en tiempo real.} El benchmark de tiempo por cuadro
+(presupuesto de 33.33 ms para 30 FPS) mostró que tanto la configuración
+a color (2.26 ms, 442.5 FPS) como en gris con resolución reducida (1.72
+ms, 580.3 FPS) superan el umbral en este entorno, aunque la versión
+optimizada mantiene una ventaja relevante para hardware con menor
+capacidad de cómputo.
+
+\textbf{CNN desde cero y profundidad adicional.} Se comparó la
+arquitectura base (2 bloques Conv+Pooling) contra una versión con una
+tercera capa \texttt{Conv2D(64,3)} (Tabla 2).
+
+\begin{center}
+\small
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Métrica} & \textbf{Sin 3.\textsuperscript{a} capa} & \textbf{Con 3.\textsuperscript{a} capa} \\
+\midrule
+Accuracy & 83.00\% & 84.00\% \\
+Falsos negativos & 22 & 13 \\
+Falsos positivos & 12 & 19 \\
+Recall (Fire) & 85.4\% & 91.4\% \\
+Precisión (Fire) & 91.5\% & 87.9\% \\
+\bottomrule
+\end{tabular}
+\captionof{table}{Comparación de arquitecturas CNN sobre el conjunto de prueba.}
+\end{center}
+
+\begin{figure}[H]
+
+{\centering \includegraphics[width=0.95\linewidth,height=\textheight,keepaspectratio]{figuras/sec14_matriz_confusion_3capa.png}
+
+}
+
+\caption{Matriz de confusión de la CNN con tercera capa convolucional
+(accuracy: 84.00\%).}
+
+\end{figure}%
+
+El accuracy global cambió poco (+1 punto), pero el tipo de error cambió
+sustancialmente: los falsos negativos cayeron un 41\%, a costa de más
+falsas alarmas --- una mejora relevante dado el mayor costo de no
+detectar un incendio real.
+
+\textbf{Regularización.} Dropout=0.5 combinado con \emph{data
+augmentation} y \emph{early stopping} alcanzó 85.50\% de accuracy, con
+curvas de validación más estables que el modelo sin regularizar.
+
+\textbf{Transfer learning y fine-tuning.} La Tabla 3 resume el desempeño
+de los cuatro modelos evaluados.
+
+\begin{center}
+\small
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Modelo} & \textbf{Época parada} & \textbf{Accuracy} \\
+\midrule
+CNN desde cero & 7 (mejor: 2) & 84.00\% \\
+Regularización combinada & 11 (mejor: 6) & 85.50\% \\
+Transfer learning (MobileNetV2) & 11 (mejor: 8) & 91.00\% \\
+Fine-tuning (últimas 10 capas) & 4 (mejor: 1) & 89.00\% \\
+\bottomrule
+\end{tabular}
+\captionof{table}{Comparación final de las cuatro arquitecturas evaluadas.}
+\end{center}
+
+\begin{figure}[H]
+
+{\centering \includegraphics[width=0.95\linewidth,height=\textheight,keepaspectratio]{figuras/sec20_comparacion_modelos.png}
+
+}
+
+\caption{Comparación final de accuracy entre las cuatro arquitecturas
+evaluadas.}
+
+\end{figure}%
+
+El transfer learning con MobileNetV2 superó ampliamente a los modelos
+entrenados desde cero, aprovechando el conocimiento preentrenado en
+ImageNet. El fine-tuning de las últimas 10 capas no mejoró el resultado
+del transfer learning puro en este dataset específico.
+
+\textbf{Métricas de detección (IoU y mAP).} Un desajuste de +15 píxeles
+(frente a +3) redujo el IoU de 0.8884 a 0.5656 (caída de 0.3228). Al
+exigir un umbral de mAP más estricto (0.7 frente a 0.5, estándar tipo
+COCO), la fracción de detecciones válidas cayó de 86.00\% a 60.00\% (−26
+puntos).
+
+\subsection{Hallazgos del proceso de
+revisión}\label{hallazgos-del-proceso-de-revisiuxf3n}
+
+La verificación cruzada entre resultados impresos y respuestas escritas
+permitió corregir cinco inconsistencias: (1) valores de accuracy citados
+como rangos genéricos en vez de las cifras reales obtenidas; (2)
+adaptación necesaria del ejercicio de GLCM al no contar con las texturas
+de referencia originales; (3) una interpretación que contradecía el
+propio benchmark de FPS impreso; (4) ausencia del valor de referencia
+sin la tercera capa convolucional, necesario para una comparación
+cuantitativa válida; y (5) un valor de accuracy hardcodeado en el código
+de comparación final que no reflejaba el resultado real de la CNN desde
+cero.
+
+\subsection{Conclusiones}\label{conclusiones}
+
+Los resultados confirman la progresión metodológica esperada: los
+descriptores clásicos ofrecen desempeño competitivo a bajo costo
+computacional, pero el transfer learning logra el mejor resultado
+global. El hallazgo más relevante desde una perspectiva de ingeniería es
+que el accuracy global puede ocultar diferencias importantes en el tipo
+de error cometido --- un matiz crítico en aplicaciones de seguridad como
+la detección temprana de incendios.
+
+
+
+
+\end{document}

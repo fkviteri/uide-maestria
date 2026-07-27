@@ -1,0 +1,148 @@
+---
+title: ""
+mainfont: "Times New Roman"
+fontsize: 11pt
+format:
+  docx:
+    toc: false
+execute:
+  enabled: false
+---
+
+```{=openxml}
+<w:p>
+  <w:pPr><w:jc w:val="center"/><w:spacing w:after="120"/></w:pPr>
+  <w:r>
+    <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:b/><w:sz w:val="32"/></w:rPr>
+    <w:t>Detección automática de incendios: comparación de descriptores clásicos de textura y arquitecturas de aprendizaje profundo sobre imágenes reales</w:t>
+  </w:r>
+</w:p>
+<w:p>
+  <w:pPr><w:jc w:val="center"/><w:spacing w:after="40"/></w:pPr>
+  <w:r>
+    <w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="24"/></w:rPr>
+    <w:t>[Nombre Apellido 1], [Nombre Apellido 2], [Nombre Apellido 3] — Grupo 2</w:t>
+  </w:r>
+</w:p>
+<w:p>
+  <w:pPr><w:jc w:val="center"/><w:spacing w:after="200"/></w:pPr>
+  <w:r>
+    <w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:i/><w:sz w:val="20"/></w:rPr>
+    <w:t>Maestría en Inteligencia Artificial Aplicada, Universidad Internacional del Ecuador (UIDE), Quito, Ecuador</w:t>
+  </w:r>
+</w:p>
+```
+
+***Resumen*** — Este trabajo compara descriptores clásicos de textura (HOG, Gabor, GLCM/Haralick, LBP, SIFT/ORB) contra arquitecturas de aprendizaje profundo (CNN entrenada desde cero, transfer learning y fine-tuning con MobileNetV2) para la clasificación de imágenes de incendios forestales, usando el conjunto de datos real "Fire Dataset" (Kaggle, 799 imágenes de entrenamiento, 200 de prueba). Los resultados muestran que el transfer learning con MobileNetV2 alcanza el mejor desempeño (91.00% de accuracy), superando a la CNN entrenada desde cero (84.00%) y a los descriptores clásicos combinados con SVM (84.00%). Se documenta además un hallazgo relevante en el análisis de textura: las regiones de fuego presentan mayor energía de Haralick que el fondo sin incendio, contrario a la intuición inicial. Finalmente, se discute por qué el accuracy global puede ser una métrica insuficiente en aplicaciones de seguridad, dado que el costo de un falso negativo supera ampliamente al de un falso positivo.
+
+***Palabras Clave*** — visión por computador, detección de incendios, HOG, GLCM, redes neuronales convolucionales, transfer learning, MobileNetV2.
+
+> **Nota para quien edite este documento:** cada bloque **[📌 PEGAR AQUÍ: ...]** indica dónde insertar una captura del notebook. Reemplázalo por la imagen y borra el texto del marcador.
+>
+> **Para dar formato de dos columnas al cuerpo (opcional, según lo pida tu docente):** en Word, selecciona desde "I. Introducción" hasta el final del documento → pestaña *Diseño* → *Columnas* → *Dos*. Déjalo en una sola columna si el docente no lo exige — el contenido es el mismo.
+
+## I. Introducción y metodología
+
+La detección temprana de incendios mediante visión por computador es un caso de uso crítico donde el costo de los distintos tipos de error no es simétrico: no detectar un incendio real (falso negativo) es considerablemente más grave que activar una alerta innecesaria (falso positivo). Este trabajo evalúa dos familias de enfoques —descriptores clásicos de textura/forma y aprendizaje profundo— sobre el conjunto de datos "Fire Dataset" de Kaggle (799 imágenes de entrenamiento, 200 de prueba, 224×224 px, escala de grises), siguiendo el pipeline de la guía de práctica de la Semana 2 (Sesión 1: reconocimiento de patrones; Sesión 2: redes neuronales convolucionales).
+
+## II. Descriptores clásicos de textura y forma (Sesión 1)
+
+**HOG.** Al aumentar el tamaño de celda de 8×8 a 16×16 píxeles, el vector descriptor se redujo de 26 244 a 6 084 elementos, consecuencia directa de que el número de celdas de la malla se reduce a la cuarta parte al duplicar el tamaño de celda.
+
+**[📌 PEGAR AQUÍ: Figura — Comparación visual HOG (8×8) vs. HOG (16×16)]**
+
+**Filtros de Gabor.** Un banco ampliado de 4 a 5 orientaciones reveló una nueva activación direccional, confirmando la sensibilidad angular de estos filtros.
+
+**[📌 PEGAR AQUÍ: Figura — Banco de 5 filtros de Gabor y sus respuestas]**
+
+**HOG + SVM.** Comparación de kernels sobre el mismo conjunto de prueba:
+
+| Kernel | Accuracy de validación |
+|---|---|
+| Lineal | 83.50% |
+| RBF | 84.00% |
+
+El kernel RBF superó marginalmente al lineal (+0.5 puntos), sugiriendo que el descriptor HOG ya es razonablemente separable de forma lineal entre las clases "fuego" y "no fuego".
+
+**PCA + K-means.** Al incrementar *k* de 2 a 3, el algoritmo fragmentó geométricamente el grupo mayoritario en dos subgrupos, sin corresponder a una clase real — evidencia de que K-means agrupa por densidad espacial, no por semántica del problema.
+
+**GLCM/Haralick y LBP.** Al no contar el dataset con las texturas de referencia originales (ladrillo/pasto/grava), se adaptó el ejercicio comparando la propiedad "energy" entre 3 muestras reales del propio dataset:
+
+| Muestra | Energía (GLCM) |
+|---|---|
+| Fuego — muestra 1 | 0.0355 |
+| Fuego — muestra 2 | 0.0274 |
+| Fondo sin incendio | 0.0101 |
+
+**[📌 PEGAR AQUÍ: Figura — Gráfico de barras "Comparación de Energía (GLCM) entre muestras"]**
+
+Resultado relevante: las muestras de fuego mostraron **mayor** energía (uniformidad) que el fondo sin incendio, contrario a la intuición inicial. La energía de Haralick mide uniformidad de intensidades de píxel, no complejidad visual percibida: las zonas de llama generan grandes regiones contiguas de alta intensidad (saturación de brillo), lo que se traduce en mayor energía.
+
+**SIFT/ORB.** Al aumentar `nfeatures` de 200 a 500, los puntos clave detectados subieron de 143/141 a 168/162 (imagen 1/2), y las coincidencias válidas (*matches*) aumentaron de 107 a 122.
+
+**[📌 PEGAR AQUÍ: Figura — Emparejamiento de puntos clave ORB entre imagen original y transformada]**
+
+## III. Redes neuronales convolucionales y aplicaciones de IA (Sesión 2)
+
+**Procesamiento en tiempo real.** Benchmark de tiempo por cuadro, presupuesto objetivo de 33.33 ms (30 FPS):
+
+| Configuración | Tiempo/cuadro | FPS |
+|---|---|---|
+| Color, resolución nativa | 2.26 ms | 442.5 |
+| Gris + resolución reducida | 1.72 ms | 580.3 |
+
+Ambas configuraciones superan el umbral de 30 FPS en este entorno de prueba, aunque la versión optimizada mantiene una ventaja consistente, relevante para hardware con menos capacidad (dispositivos *edge*).
+
+**CNN desde cero y tercera capa convolucional.** Se comparó la arquitectura original (2 bloques Conv+Pooling) contra una versión con una tercera capa `Conv2D(64,3)` añadida antes del `Flatten()`:
+
+| Métrica | Sin 3ª capa | Con 3ª capa |
+|---|---|---|
+| Accuracy | 83.00% | 84.00% |
+| Falsos negativos | 22 | 13 |
+| Falsos positivos | 12 | 19 |
+| Recall (Fire) | 85.4% | 91.4% |
+| Precisión (Fire) | 91.5% | 87.9% |
+
+**[📌 PEGAR AQUÍ: Figura — Matriz de confusión de la CNN con 3ª capa (Accuracy: 84.00%)]**
+
+El accuracy global cambió poco, pero el tipo de error cambió de forma relevante: la profundidad adicional redujo los falsos negativos en un 41%, a costa de más falsas alarmas. En un sistema de detección de incendios, donde un falso negativo es más costoso que un falso positivo, la arquitectura más profunda es la mejor decisión de diseño pese a su ganancia modesta en accuracy total.
+
+**Regularización.** Con Dropout=0.5 + *data augmentation* + *early stopping*, el accuracy de validación alcanzó 85.50%, con una curva de `val_loss` más estable que el modelo sin regularizar.
+
+**[📌 PEGAR AQUÍ: Figura — Curvas de entrenamiento/validación con y sin regularización]**
+
+**Transfer learning y fine-tuning.**
+
+| Modelo | Época de detención | Accuracy |
+|---|---|---|
+| CNN desde cero (Sec. 14-15) | Época 7 (mejor: época 2) | 84.00% |
+| Regularización combinada (Sec. 16-17) | Época 11 (mejor: época 6) | 85.50% |
+| Transfer learning (MobileNetV2) | Época 11 (mejor: época 8) | 91.00% |
+| Fine-tuning (últimas 10 capas) | Época 4 (mejor: época 1) | 89.00% |
+
+**[📌 PEGAR AQUÍ: Figura — Gráfico de barras comparativo final de los 4 modelos]**
+
+El transfer learning con MobileNetV2 superó ampliamente a los modelos entrenados desde cero, aprovechando el conocimiento previo de ImageNet. El *fine-tuning* de las últimas 10 capas no mejoró el resultado del transfer learning puro en este dataset.
+
+**Métricas de detección — IoU y mAP.**
+
+| Parámetro | Valor 1 | Valor 2 | Caída |
+|---|---|---|---|
+| Desajuste de caja | +3 px → IoU = 0.8884 | +15 px → IoU = 0.5656 | −0.3228 |
+| Umbral mAP | 0.5 → 86.00% | 0.7 → 60.00% | −26 pts |
+
+**[📌 PEGAR AQUÍ: Figura — Visualización de cajas delimitadoras e IoU]**
+
+**Ética, sesgo y privacidad.** Se simuló una auditoría de desempeño por subgrupo demográfico para la industria de la salud (diagnóstico asistido por imagen):
+
+**[📌 PEGAR AQUÍ: Tabla/Figura — Auditoría de desempeño por grupo demográfico]**
+
+El riesgo identificado: un modelo entrenado predominantemente con imágenes de centros urbanos de alta tecnología puede degradar su desempeño en poblaciones con equipos de menor calidad, perpetuando disparidades de atención médica. Como mitigación se propuso *data augmentation* orientado a simular degradación de calidad y métricas de equidad demográfica (*fairness-aware learning*) durante el entrenamiento.
+
+## IV. Hallazgos del proceso de revisión
+
+Durante la verificación cruzada entre los resultados impresos por el notebook y las respuestas escritas, se identificaron y corrigieron cinco inconsistencias: valores de accuracy citados como rangos genéricos en vez de las cifras reales obtenidas (Sección 5); adaptación necesaria del ejercicio de GLCM al no contar con las texturas de referencia originales (Secciones 8-9); una interpretación que contradecía el propio benchmark de FPS impreso (Sección 12); ausencia del valor de referencia sin la tercera capa convolucional, necesario para una comparación cuantitativa válida (Sección 14); y un valor de accuracy hardcodeado en el código de comparación final que no reflejaba el resultado real de la CNN desde cero (Sección 20).
+
+## V. Conclusiones
+
+Los resultados confirman la progresión metodológica esperada en visión por computador: los descriptores clásicos ofrecen desempeño competitivo a bajo costo computacional, pero el transfer learning logra el mejor resultado global (91.00%), aprovechando conocimiento preentrenado. El hallazgo más relevante desde una perspectiva de ingeniería es que el accuracy global puede ocultar diferencias importantes en el tipo de error cometido — un matiz crítico en aplicaciones de seguridad como la detección temprana de incendios, donde no todos los errores tienen el mismo costo.

@@ -1,0 +1,4 @@
+train: c:\Users\fkva_\OneDrive\Escritorio\UIDE\uide-maestria\06-vision-por-computador\dataset_video/images/train
+val: c:\Users\fkva_\OneDrive\Escritorio\UIDE\uide-maestria\06-vision-por-computador\dataset_video/images/val
+nc: 3
+names: ['person', 'car', 'traffic light']
