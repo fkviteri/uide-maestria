@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker --version)",
+      "Bash(where docker *)",
+      "Bash(powershell.exe *)",
+      "Bash(pip --version)",
+      "Bash(py --version)",
+      "Bash(where python *)",
+      "Bash(where python3 *)",
+      "Bash(docker compose *)",
+      "PowerShell(winget install *)"
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+services:
+  modelo-entregas:
+    build: .
+    image: modelo-entregas:semana1
+    container_name: modelo-entregas
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models
+    environment:
+      - MODEL_PATH=/app/models/modelo_entregas.pkl
