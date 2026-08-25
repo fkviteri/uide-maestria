@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Monitoreo de Sensores Industriales</title>
+<style>
+    * { box-sizing: border-box; }
+    body {
+        font-family: Arial, Helvetica, sans-serif;
+        background-color: #f2f4f7;
+        margin: 0;
+        padding: 20px;
+        color: #222;
+    }
+    header {
+        text-align: center;
+        margin-bottom: 25px;
+    }
+    header h1 {
+        margin: 0;
+        font-size: 24px;
+        color: #1f3a5f;
+    }
+    header h2 {
+        margin: 4px 0 0 0;
+        font-size: 15px;
+        font-weight: normal;
+        color: #555;
+    }
+    .contenedor {
+        max-width: 900px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+    .tarjeta {
+        background-color: #ffffff;
+        border: 1px solid #dde1e6;
+        border-radius: 8px;
+        padding: 20px;
+    }
+    .tarjeta h3 {
+        margin-top: 0;
+        color: #1f3a5f;
+        border-bottom: 2px solid #eaeef2;
+        padding-bottom: 8px;
+    }
+    label {
+        display: block;
+        margin-top: 10px;
+        margin-bottom: 4px;
+        font-size: 14px;
+        font-weight: bold;
+    }
+    input {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #c9ccd1;
+        border-radius: 5px;
+        font-size: 14px;
+    }
+    .fila {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+    }
+    button {
+        margin-top: 18px;
+        background-color: #1f3a5f;
+        color: white;
+        border: none;
+        padding: 10px 18px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+    button:hover {
+        background-color: #16283f;
+    }
+    .resultado {
+        margin-top: 15px;
+        padding: 12px;
+        border-radius: 6px;
+        font-size: 14px;
+        display: none;
+    }
+    .normal {
+        background-color: #e4f7e9;
+        border: 1px solid #4caf50;
+        color: #256029;
+    }
+    .falla {
+        background-color: #fdeaea;
+        border: 1px solid #e53935;
+        color: #8a1c1c;
+    }
+    .fila-limite {
+        display: flex;
+        justify-content: space-between;
+        padding: 6px 0;
+        border-bottom: 1px solid #eee;
+        font-size: 14px;
+    }
+    .alerta-si {
+        color: #c62828;
+        font-weight: bold;
+    }
+    .alerta-no {
+        color: #2e7d32;
+        font-weight: bold;
+    }
+    a.boton-enlace {
+        display: inline-block;
+        margin-top: 15px;
+        background-color: #455a64;
+        color: white;
+        text-decoration: none;
+        padding: 10px 18px;
+        border-radius: 5px;
+        font-size: 14px;
+    }
+    a.boton-enlace:hover {
+        background-color: #33424a;
+    }
+</style>
+</head>
+<body>
+
+<header>
+    <h1>Monitoreo de Sensores Industriales</h1>
+    <h2>Semana 2 - Despliegue de Modelos IA</h2>
+</header>
+
+<div class="contenedor">
+
+    <!-- SECCION 1: PREDICCION -->
+    <div class="tarjeta">
+        <h3>1. Predicción de falla</h3>
+        <div class="fila">
+            <div>
+                <label for="temperatura">Temperatura</label>
+                <input type="number" id="temperatura" step="0.1" value="75">
+            </div>
+            <div>
+                <label for="vibracion">Vibración</label>
+                <input type="number" id="vibracion" step="0.01" value="0.6">
+            </div>
+        </div>
+        <button onclick="realizarPrediccion()">Realizar predicción</button>
+        <div id="resultadoPrediccion" class="resultado"></div>
+    </div>
+
+    <!-- SECCION 2: MONITOREO -->
+    <div class="tarjeta">
+        <h3>2. Monitoreo de Data Drift</h3>
+        <div class="fila">
+            <div>
+                <label for="size">Tamaño del batch</label>
+                <input type="number" id="size" value="200">
+            </div>
+            <div>
+                <label for="k_sigma">k-sigma</label>
+                <input type="number" id="k_sigma" step="0.5" value="2">
+            </div>
+            <div>
+                <label for="temp_mean">Media temperatura</label>
+                <input type="number" id="temp_mean" step="0.1" value="72">
+            </div>
+            <div>
+                <label for="temp_std">Desviación temperatura</label>
+                <input type="number" id="temp_std" step="0.1" value="5">
+            </div>
+            <div>
+                <label for="vib_mean">Media vibración</label>
+                <input type="number" id="vib_mean" step="0.01" value="0.52">
+            </div>
+            <div>
+                <label for="vib_std">Desviación vibración</label>
+                <input type="number" id="vib_std" step="0.01" value="0.1">
+            </div>
+        </div>
+        <button onclick="ejecutarMonitoreo()">Ejecutar monitoreo</button>
+        <div id="resultadoMonitoreo" class="resultado"></div>
+    </div>
+
+    <!-- SECCION 3: REPORTE EVIDENTLY -->
+    <div class="tarjeta">
+        <h3>3. Reporte detallado (Evidently)</h3>
+        <p>El reporte completo de Data Drift generado por Evidently se puede ver en una pestaña nueva.</p>
+        <a class="boton-enlace" href="/report" target="_blank">Ver reporte de Data Drift</a>
+    </div>
+
+</div>
+
+<script>
+    // Realiza la peticion de prediccion al endpoint /predecir_sensores
+    async function realizarPrediccion() {
+        const temperatura = parseFloat(document.getElementById('temperatura').value);
+        const vibracion = parseFloat(document.getElementById('vibracion').value);
+
+        const respuesta = await fetch('/predecir_sensores', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ temperatura, vibracion })
+        });
+        const datos = await respuesta.json();
+
+        const caja = document.getElementById('resultadoPrediccion');
+        caja.style.display = 'block';
+
+        if (datos.prediccion === 1) {
+            caja.className = 'resultado falla';
+            caja.innerHTML = `<strong>Posible falla detectada</strong><br>
+                Probabilidad de evento: ${datos.probabilidad_evento}`;
+        } else {
+            caja.className = 'resultado normal';
+            caja.innerHTML = `<strong>Funcionamiento normal</strong><br>
+                Probabilidad de evento: ${datos.probabilidad_evento}`;
+        }
+    }
+
+    // Realiza la peticion de monitoreo al endpoint /monitor
+    async function ejecutarMonitoreo() {
+        const cuerpo = {
+            size: parseInt(document.getElementById('size').value),
+            temp_mean: parseFloat(document.getElementById('temp_mean').value),
+            temp_std: parseFloat(document.getElementById('temp_std').value),
+            vib_mean: parseFloat(document.getElementById('vib_mean').value),
+            vib_std: parseFloat(document.getElementById('vib_std').value),
+            k_sigma: parseFloat(document.getElementById('k_sigma').value)
+        };
+
+        const respuesta = await fetch('/monitor', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cuerpo)
+        });
+        const datos = await respuesta.json();
+
+        const caja = document.getElementById('resultadoMonitoreo');
+        caja.style.display = 'block';
+        caja.className = datos.dataset_drift ? 'resultado falla' : 'resultado normal';
+
+        const t = datos.limites.temperatura;
+        const v = datos.limites.vibracion;
+
+        caja.innerHTML = `
+            <div class="fila-limite">
+                <span>¿Existe Data Drift?</span>
+                <span>${datos.dataset_drift ? 'Sí' : 'No'}</span>
+            </div>
+            <div class="fila-limite">
+                <span>Media actual temperatura</span>
+                <span>${t.media_actual}</span>
+            </div>
+            <div class="fila-limite">
+                <span>Límite temperatura</span>
+                <span>${t.limite_superior}</span>
+            </div>
+            <div class="fila-limite">
+                <span>Alerta temperatura</span>
+                <span class="${t.alerta ? 'alerta-si' : 'alerta-no'}">${t.alerta ? 'SI' : 'NO'}</span>
+            </div>
+            <div class="fila-limite">
+                <span>Media actual vibración</span>
+                <span>${v.media_actual}</span>
+            </div>
+            <div class="fila-limite">
+                <span>Límite vibración</span>
+                <span>${v.limite_superior}</span>
+            </div>
+            <div class="fila-limite">
+                <span>Alerta vibración</span>
+                <span class="${v.alerta ? 'alerta-si' : 'alerta-no'}">${v.alerta ? 'SI' : 'NO'}</span>
+            </div>
+        `;
+    }
+</script>
+
+</body>
+</html>

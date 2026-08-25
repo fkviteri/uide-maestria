@@ -1,0 +1,24 @@
+# QUÉ: Archivos/carpetas que Docker NO debe copiar al contenedor.
+# POR QUÉ: Reduce el tamaño de la imagen y evita filtrar archivos
+#      sensibles o innecesarios (entornos virtuales, caché, git).
+
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+.git/
+.gitignore
+.pytest_cache/
+*.ipynb_checkpoints
+.vscode/
+.idea/
+
+# Datos y modelos generados localmente -- se regeneran en el build
+# con train_model.py, así que no hace falta subirlos al contenedor.
+data/
+models/
+reports/
+
+README.md

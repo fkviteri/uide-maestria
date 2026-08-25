@@ -1,0 +1,29 @@
+# QUÉ: Archivos/carpetas que Git NO debe rastrear ni subir a GitHub.
+# POR QUÉ: data/, models/ y reports/ se REGENERAN automáticamente
+#      (train_model.py los crea durante el build de Docker), así que
+#      no tiene sentido versionarlos -- solo ocuparían espacio en el
+#      repositorio y podrían quedar desactualizados.
+
+# Entornos virtuales de Python
+.venv/
+venv/
+env/
+
+# Caché de Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Artefactos generados por train_model.py (se recrean solos)
+data/
+models/
+reports/
+
+# Archivos de configuración local / IDE
+.vscode/
+.idea/
+.env
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
